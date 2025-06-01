@@ -16,8 +16,13 @@ app.get('/', (req, res) => {
 
 
 app.get('/products', async (req, res) => {
-    const result = await ProductModel.find();
-    res.status(201).json({ message: 'Product created successfully', product: result });
+    const result = await ProductModel.find().sort({reviews: -1, rating: -1}).limit(12);
+    res.json(result);
+})
+
+app.get('/all-products', async (req, res) => {
+     const result = await ProductModel.find({ isNewArrival: true }).lean();
+    res.json(result);
 })
 
 
