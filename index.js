@@ -2,16 +2,41 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
-
+import jwt from "jsonwebtoken";
+import cookieParser from "cookie-parser";
 import ProductModel from "./Schema/Products.js";
+import { verifyToken } from "./Middleware/verifyToken.js";
 dotenv.config();
 const app = express();
-app.use(cors());
-app.use(express.json());
 
-app.get("/", (req, res) => {
-  res.send("Welcome to the API");
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
+app.use(express.json());
+app.use(cookieParser());
+
+app.post("/jwt", async (req, res) => {
+  const user = {
+    email: req.body.email,
+  };
+
+  // Generate JWT token
+  const token = jwt.sign(user, process.env.SECRET_KEY, { expiresIn: "2h" });
+
+  // Send token in cookies
+  res.cookie('token', token, {
+    httpOnly: true,
+    secure: false,
+    sameSite: 'lax', // Optional, for cookie security
+  });
+
+  // Send response to client
+  res.status(200).send({ message: "Token generated and sent", token: token });
 });
+
 
 app.get("/products", async (req, res) => {
   const result = await ProductModel.find()
@@ -25,8 +50,14 @@ app.get("/all-products", async (req, res) => {
   res.json(result);
 });
 
-app.get("/shop/products", async (req, res) => {
-  const { category, minPrice, maxPrice, rating } = req.query;
+app.get("/shop/products", verifyToken, async (req, res) => {
+  const { category, minPrice, maxPrice, rating, email } = req.query;
+  
+console.log(email)
+console.log(req.decode.email)
+ if(email !== req.decode.email){
+    return res.status(403).send({message:"Forbidden access"})
+ }
   const query = {};
 
   if (category) {
@@ -37,18 +68,16 @@ app.get("/shop/products", async (req, res) => {
     query.price = {};
 
     if (minPrice) {
-      query.price.$gte = parseFloat(minPrice );
+      query.price.$gte = parseFloat(minPrice);
     }
     if (maxPrice) {
-      query.price.$lte = parseFloat(maxPrice );
+      query.price.$lte = parseFloat(maxPrice);
     }
   }
 
   if (rating) {
     query.rating = { $gte: parseInt(rating) };
   }
-
-  console.log("inside the query", query);
 
   try {
     const result = await ProductModel.find(query).lean();
